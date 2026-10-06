@@ -125,3 +125,6 @@ cost: ## Build the cost report
 
 swap-check: ## Prove the portability seam against a second provider
 	python scripts/portability_swap_check.py --second-provider $(SECOND)
+
+scan-secrets: ## Scan full Git history for committed credentials
+	python scripts/scan_secrets.py

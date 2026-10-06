@@ -140,3 +140,13 @@ course, and rotating it is your responsibility, not the grader's.
 In a real organisation, promotion to the `staging` stage should be restricted to an authorised ML engineer, MLOps engineer, or designated model owner rather than every developer.
 
 Before promotion, they should check the model lineage, including the Git commit, data version, MLflow run ID, training job ID, container image digest, seed, validation metric, and test metric. They should also verify that the training job completed successfully and that the selected model passed the required validation and test checks.
+
+---
+
+## Lab 4 — Data contract tests
+
+The Lab 4 CI pipeline includes data contract tests that are designed to catch realistic production data failures.
+
+- `test_schema_columns_present_and_typed`: This would catch an upstream pipeline change where a required sensor column is removed, renamed, or produced with the wrong data type. Without this test, the model could receive an unexpected schema and fail or produce invalid predictions.
+
+- `test_features_within_plausible_ranges`: This would catch a sensor or ETL unit-conversion error that produces values outside realistic limits, such as `load_pct` being scaled incorrectly. The data may still have the correct columns and types, but the values would no longer represent valid production inputs.

@@ -1,8 +1,7 @@
 # ITCS355 Lab 4 — continuous deployment.
 #
-# Runs only on main, only after CI is green. Credentials come from OIDC federation, not
-# from stored keys — TODO(Lab 4): uncomment the block for YOUR provider and delete the
-# other two.
+# Runs only on main, only after CI is green.
+# GCP credentials come from GitHub OIDC Workload Identity Federation.
 
 name: CD
 
@@ -23,40 +22,79 @@ jobs:
     environment: staging
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
 
-      # --- AWS ---------------------------------------------------------------
-      # - uses: aws-actions/configure-aws-credentials@v4
-      #   with:
-      #     role-to-assume: ${{ secrets.AWS_DEPLOY_ROLE_ARN }}
-      #     aws-region: ${{ vars.REGION }}
-      # - run: aws ecr get-login-password --region ${{ vars.REGION }} | docker login --username AWS --password-stdin ${{ vars.CONTAINER_REGISTRY }}
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
 
-      # --- Azure -------------------------------------------------------------
-      # - uses: azure/login@v2
-      #   with:
-      #     client-id: ${{ secrets.AZURE_CLIENT_ID }}
-      #     tenant-id: ${{ secrets.AZURE_TENANT_ID }}
-      #     subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
-      # - run: az acr login --name ${{ vars.ACR_NAME }}
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Install
+        run: |
+          pip install --upgrade pip
+          pip install -r requirements.txt
 
       # --- GCP ---------------------------------------------------------------
-      # - uses: google-github-actions/auth@v2
-      #   with:
-      #     workload_identity_provider: ${{ secrets.GCP_WIF_PROVIDER }}
-      #     service_account: ${{ secrets.GCP_DEPLOY_SA }}
-      # - run: gcloud auth configure-docker ${{ vars.REGION }}-docker.pkg.dev
+      - uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ secrets.GCP_WIF_PROVIDER }}
+          service_account: ${{ secrets.GCP_DEPLOY_SA }}
+
+      - run: gcloud auth configure-docker ${{ vars.REGION }}-docker.pkg.dev
+
+      - name: Build serving image
+        run: |
+          docker buildx build \
+            --platform linux/amd64 \
+            -f service/Dockerfile.serve \
+            -t itcs355-serve:${{ github.event.workflow_run.head_sha }} \
+            --load .
 
       - name: Push image
+        id: push
+        env:
+          CLOUD_PROVIDER: gcp
+          PROJECT_ID: itcs355-6688176
+          REGION: ${{ vars.REGION }}
+          BLOB_URI: gs://itcs355-6688176/itcs355
+          CONTAINER_REGISTRY: ${{ vars.CONTAINER_REGISTRY }}
+          MLFLOW_TRACKING_URI: sqlite:///mlflow.db
+          MODEL_REGISTRY_NAME: itcs355-6688176
+          IDENTITY_REF: serviceAccount:${{ secrets.GCP_DEPLOY_SA }}
         run: |
-          echo "TODO(Lab 4): push the SHA-tagged image through your adapter"
-          # python -c "from src import config; from cloudlayer.factory import get_adapter; \
-          #   print(get_adapter(config.load()).push_image('itcs355-serve:${{ github.sha }}'))"
+          IMAGE_URI=$(python -c "from src import config; from cloudlayer.factory import get_adapter; print(get_adapter(config.load()).push_image('itcs355-serve:${{ github.event.workflow_run.head_sha }}'))")
+          echo "image_uri=$IMAGE_URI" >> "$GITHUB_OUTPUT"
+          echo "$IMAGE_URI"
 
       - name: Deploy to staging
+        id: deploy
+        env:
+          CLOUD_PROVIDER: gcp
+          PROJECT_ID: itcs355-6688176
+          REGION: ${{ vars.REGION }}
+          BLOB_URI: gs://itcs355-6688176/itcs355
+          CONTAINER_REGISTRY: ${{ vars.CONTAINER_REGISTRY }}
+          MLFLOW_TRACKING_URI: sqlite:///mlflow.db
+          MODEL_REGISTRY_NAME: itcs355-6688176
+          IDENTITY_REF: serviceAccount:${{ secrets.GCP_DEPLOY_SA }}
+          SERVING_IMAGE_URI: ${{ steps.push.outputs.image_uri }}
         run: |
-          echo "TODO(Lab 4): adapter.deploy(model_ref, endpoint, instance)"
+          ENDPOINT_RESOURCE=$(python -c "from src import config; from cloudlayer.factory import get_adapter; cfg=config.load(); print(get_adapter(cfg).deploy('1','itcs355-lab4-staging','n1-standard-2'))")
+          echo "endpoint_resource=$ENDPOINT_RESOURCE" >> "$GITHUB_OUTPUT"
+          echo "$ENDPOINT_RESOURCE"
 
       - name: Smoke test
+        env:
+          CLOUD_PROVIDER: gcp
+          PROJECT_ID: itcs355-6688176
+          REGION: ${{ vars.REGION }}
+          BLOB_URI: gs://itcs355-6688176/itcs355
+          CONTAINER_REGISTRY: ${{ vars.CONTAINER_REGISTRY }}
+          MLFLOW_TRACKING_URI: sqlite:///mlflow.db
+          MODEL_REGISTRY_NAME: itcs355-6688176
+          IDENTITY_REF: serviceAccount:${{ secrets.GCP_DEPLOY_SA }}
         run: |
-          echo "TODO(Lab 4): adapter.invoke() with three known payloads."
-          echo "A deploy that is not smoke-tested is a deploy you have not verified."
+          PYTHONPATH=. python scripts/smoke_test.py --endpoint "${{ steps.deploy.outputs.endpoint_resource }}"

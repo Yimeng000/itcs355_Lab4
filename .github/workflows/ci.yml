@@ -15,6 +15,16 @@ permissions:
   id-token: write        # required for OIDC. See cd.yml — no long-lived keys anywhere.
 
 jobs:
+  secrets:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Scan history for credentials
+        run: make scan-secrets
+
   test:
     runs-on: ubuntu-latest
     steps:
@@ -28,8 +38,7 @@ jobs:
       - name: Install
         run: |
           pip install --upgrade pip
-          pip install -r requirements.txt
-          # TODO(Lab 4): once requirements.txt carries hashes, add --require-hashes.
+          pip install --require-hashes -r requirements.txt
 
       - name: Lint
         # ruff is pinned in requirements.txt and installed above. Installing it unpinned
@@ -52,7 +61,7 @@ jobs:
         run: pytest -q tests/test_service.py
 
   build:
-    needs: test
+    needs: [test, secrets]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -91,10 +100,13 @@ jobs:
           for i in $(seq 1 30); do
             curl -sf localhost:8080/ready && break || sleep 2
           done
-          curl -sf -X POST localhost:8080/predict \
+          response=$(curl -sf -X POST localhost:8080/predict \
             -H 'content-type: application/json' \
-            -d '{"temp_c":78.4,"vibration_mm_s":3.1,"pressure_kpa":315.2,"hours_since_service":4200,"load_pct":68,"ambient_humidity":55}' \
-            | tee /dev/stderr | grep -q probability
+            -d '{"temp_c":78.4,"vibration_mm_s":3.1,"pressure_kpa":315.2,"hours_since_service":4200,"load_pct":68,"ambient_humidity":55}')
+
+          echo "$response"
+          echo "$response" | grep -q '"probability"'
+          echo "$response" | grep -q "\"model_version\":\"${{ github.sha }}\""
           docker stop svc
 
       # Images are tagged with the commit SHA, never `latest`. A `latest` tag makes it
