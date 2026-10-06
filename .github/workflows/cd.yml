@@ -65,7 +65,7 @@ jobs:
           MODEL_REGISTRY_NAME: itcs355-6688176
           IDENTITY_REF: serviceAccount:${{ secrets.GCP_DEPLOY_SA }}
         run: |
-          IMAGE_URI=$(python -c "from src import config; from cloudlayer.factory import get_adapter; print(get_adapter(config.load()).push_image('itcs355-serve:${{ github.event.workflow_run.head_sha }}'))")
+          IMAGE_URI=$(python -c "from src import config; from cloudlayer.factory import get_adapter; print(get_adapter(config.load()).push_image('itcs355-serve:${{ github.event.workflow_run.head_sha }}'))" | tail -n 1)
           echo "image_uri=$IMAGE_URI" >> "$GITHUB_OUTPUT"
           echo "$IMAGE_URI"
 
