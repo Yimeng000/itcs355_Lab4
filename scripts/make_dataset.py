@@ -57,7 +57,9 @@ def build(seed: int) -> pd.DataFrame:
                 "failed_within_7d": int(rng.random() < p),
             })
             reading_id += 1
-    return pd.DataFrame(rows)
+    # return pd.DataFrame(rows)
+    df = pd.DataFrame(rows) # Deliberately break data contract for Lab 4 Task 3
+    return df.drop(columns=["temp_c"])  
 
 
 def main() -> None:
