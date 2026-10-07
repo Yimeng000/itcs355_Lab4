@@ -112,22 +112,22 @@ def main() -> int:
     ap.add_argument("--emit", action="store_true", help="send scores as cloud metrics")
     args = ap.parse_args()
 
-    reference_path = args.reference
-    current_path = args.current
+    reference_path = Path(args.reference)
+    current_path = Path(args.current)
 
-    if str(reference_path).startswith("gs://") or str(current_path).startswith("gs://"):
+    if not reference_path.exists() or not current_path.exists():
         from cloudlayer.factory import get_adapter
 
         adapter = get_adapter(config.load(strict=False))
 
-        if str(reference_path).startswith("gs://"):
+        if not reference_path.exists():
             local_reference = Path("/tmp/reference.csv")
-            adapter.download(str(reference_path), str(local_reference))
+            adapter.download(args.reference, str(local_reference))
             reference_path = local_reference
 
-        if str(current_path).startswith("gs://"):
+        if not current_path.exists():
             local_current = Path("/tmp/current.csv")
-            adapter.download(str(current_path), str(local_current))
+            adapter.download(args.current, str(local_current))
             current_path = local_current
 
     reference = pd.read_csv(reference_path)
