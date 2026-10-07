@@ -98,3 +98,21 @@ jobs:
           IDENTITY_REF: serviceAccount:${{ secrets.GCP_DEPLOY_SA }}
         run: |
           PYTHONPATH=. python scripts/smoke_test.py --endpoint "${{ steps.deploy.outputs.endpoint_resource }}"
+
+      - name: Cleanup staging endpoint
+        if: always() && steps.deploy.outputs.endpoint_resource != ''
+        run: |
+          ENDPOINT_ID=$(basename "${{ steps.deploy.outputs.endpoint_resource }}")
+          DEPLOYED_MODEL_ID=$(gcloud ai endpoints describe "$ENDPOINT_ID" \
+            --region="${{ vars.REGION }}" \
+            --project="itcs355-6688176" \
+            --format="value(deployedModels[0].id)")
+
+          if [ -n "$DEPLOYED_MODEL_ID" ]; then
+            gcloud ai endpoints undeploy-model "$ENDPOINT_ID" \
+              --region="${{ vars.REGION }}" \
+              --project="itcs355-6688176" \
+              --deployed-model-id="$DEPLOYED_MODEL_ID" \
+              --quiet
+          fi
+          
