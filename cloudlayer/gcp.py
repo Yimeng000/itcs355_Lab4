@@ -262,6 +262,7 @@ class GcpAdapter(CloudAdapter):
             traffic_percentage=100,
             sync=True,
         )
+        self.emit_metric("model_version", float(model_ref))
 
         return endpoint_obj.resource_name
 
@@ -291,6 +292,33 @@ class GcpAdapter(CloudAdapter):
         response = client.raw_predict(request=request)
 
         return json.loads(response.data.decode("utf-8"))
+
+    def emit_metric(self, name: str, value: float, unit: str = "None") -> None:
+        from google.cloud import monitoring_v3
+
+        client = monitoring_v3.MetricServiceClient()
+        project_name = f"projects/{self.cfg.project_id}"
+
+        series = monitoring_v3.TimeSeries()
+        series.metric.type = f"custom.googleapis.com/itcs355/{name}"
+        series.resource.type = "global"
+        series.resource.labels["project_id"] = self.cfg.project_id
+
+        from google.protobuf.timestamp_pb2 import Timestamp
+
+        point = monitoring_v3.Point()
+        point.value.double_value = float(value)
+
+        timestamp = Timestamp()
+        timestamp.GetCurrentTime()
+        point.interval = monitoring_v3.TimeInterval(end_time=timestamp)
+
+        series.points = [point]
+
+        client.create_time_series(
+            name=project_name,
+            time_series=[series],
+        )
 
     def teardown(self, tags: dict[str, str]) -> list[str]:
         from google.cloud import aiplatform
