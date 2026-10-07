@@ -154,3 +154,14 @@ The Lab 4 CI pipeline includes data contract tests that are designed to catch re
 ### Lab 4 — Drift detection threshold
 
 The drift detector uses a PSI threshold of 0.25. Values below 0.10 are treated as normal variation, while 0.25 is used as the alert boundary so that the scheduled detector reacts to a substantial distribution shift rather than small sampling noise. When any monitored feature reaches PSI >= 0.25, the detector reports an alert and emits the feature PSI score to Cloud Monitoring.
+
+### Lab 4 — Drift injection evidence
+
+Injected drift into `temp_c` by shifting the feature mean from 79.58 to 85.58. The detector reported `temp_c PSI = 0.38333`, exceeding the alert threshold of 0.25. The first alert was recorded about 109 seconds after injection, and the configured email notification channel received the alert.
+
+Postmortem:
+1. A deliberate +6 shift was applied to `temp_c`.
+2. The scheduled drift detector detected PSI 0.38333, above the 0.25 threshold.
+3. Detection latency was approximately 109 seconds from injection to the first alert.
+4. Cloud Monitoring triggered the configured email notification successfully.
+5. Before retraining, the team should confirm whether the shift is genuine production drift or an upstream data-quality problem.
