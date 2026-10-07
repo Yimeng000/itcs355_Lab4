@@ -82,6 +82,7 @@ jobs:
           IDENTITY_REF: serviceAccount:${{ secrets.GCP_DEPLOY_SA }}
           SERVING_IMAGE_URI: ${{ steps.push.outputs.image_uri }}
         run: |
+          set -o pipefail
           ENDPOINT_RESOURCE=$(python -c "from src import config; from cloudlayer.factory import get_adapter; cfg=config.load(); print(get_adapter(cfg).deploy('1','itcs355-lab4-staging','n1-standard-2'))" | tail -n 1)
           echo "endpoint_resource=$ENDPOINT_RESOURCE" >> "$GITHUB_OUTPUT"
           echo "$ENDPOINT_RESOURCE"
