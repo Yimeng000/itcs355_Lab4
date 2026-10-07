@@ -1,4 +1,5 @@
 import argparse
+import time
 
 from src import config
 from cloudlayer.factory import get_adapter
@@ -40,8 +41,15 @@ def main():
     ]
 
     for i, payload in enumerate(payloads, 1):
-        result = adapter.invoke(args.endpoint, payload)
-        print(i, result)
+        for attempt in range(10):
+            try:
+                result = adapter.invoke(args.endpoint, payload)
+                print(i, result)
+                break
+            except Exception as e:
+                if "model not loaded" not in str(e) or attempt == 9:
+                    raise
+                time.sleep(15)
 
 
 if __name__ == "__main__":
