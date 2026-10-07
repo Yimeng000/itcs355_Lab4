@@ -101,19 +101,26 @@ jobs:
           PYTHONPATH=. python scripts/smoke_test.py --endpoint "${{ steps.deploy.outputs.endpoint_resource }}"
 
       - name: Cleanup staging endpoint
-        if: always() && steps.deploy.outputs.endpoint_resource != ''
+        if: always()
         run: |
-          ENDPOINT_ID=$(basename "${{ steps.deploy.outputs.endpoint_resource }}")
-          DEPLOYED_MODEL_ID=$(gcloud ai endpoints describe "$ENDPOINT_ID" \
+          ENDPOINT_IDS=$(gcloud ai endpoints list \
             --region="${{ vars.REGION }}" \
             --project="itcs355-6688176" \
-            --format="value(deployedModels[0].id)")
+            --filter='displayName="itcs355-lab4-staging"' \
+            --format="value(name.basename())")
 
-          if [ -n "$DEPLOYED_MODEL_ID" ]; then
-            gcloud ai endpoints undeploy-model "$ENDPOINT_ID" \
+          for ENDPOINT_ID in $ENDPOINT_IDS; do
+            DEPLOYED_MODEL_IDS=$(gcloud ai endpoints describe "$ENDPOINT_ID" \
               --region="${{ vars.REGION }}" \
               --project="itcs355-6688176" \
-              --deployed-model-id="$DEPLOYED_MODEL_ID" \
-              --quiet
-          fi
+              --format="value(deployedModels[].id)")
+
+            for DEPLOYED_MODEL_ID in $DEPLOYED_MODEL_IDS; do
+              gcloud ai endpoints undeploy-model "$ENDPOINT_ID" \
+                --region="${{ vars.REGION }}" \
+                --project="itcs355-6688176" \
+                --deployed-model-id="$DEPLOYED_MODEL_ID" \
+                --quiet
+            done
+          done
           
