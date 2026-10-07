@@ -150,3 +150,7 @@ The Lab 4 CI pipeline includes data contract tests that are designed to catch re
 - `test_schema_columns_present_and_typed`: This would catch an upstream pipeline change where a required sensor column is removed, renamed, or produced with the wrong data type. Without this test, the model could receive an unexpected schema and fail or produce invalid predictions.
 
 - `test_features_within_plausible_ranges`: This would catch a sensor or ETL unit-conversion error that produces values outside realistic limits, such as `load_pct` being scaled incorrectly. The data may still have the correct columns and types, but the values would no longer represent valid production inputs.
+
+### Lab 4 — Drift detection threshold
+
+The drift detector uses a PSI threshold of 0.25. Values below 0.10 are treated as normal variation, while 0.25 is used as the alert boundary so that the scheduled detector reacts to a substantial distribution shift rather than small sampling noise. When any monitored feature reaches PSI >= 0.25, the detector reports an alert and emits the feature PSI score to Cloud Monitoring.

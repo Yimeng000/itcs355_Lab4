@@ -104,16 +104,34 @@ def main() -> int:
     from src import config, data
 
     ap = argparse.ArgumentParser()
-    ap.add_argument("--reference", type=Path, default=Path("data/raw/sensors.csv"))
-    ap.add_argument("--current", type=Path, required=True)
+    ap.add_argument("--reference", type=str, default="data/raw/sensors.csv")
+    ap.add_argument("--current", type=str, required=True)
     ap.add_argument("--threshold", type=float, default=PSI_MODERATE,
                     help="alert above this PSI. Justify your value in the README.")
     ap.add_argument("--out", type=Path, default=Path("reports/drift.json"))
     ap.add_argument("--emit", action="store_true", help="send scores as cloud metrics")
     args = ap.parse_args()
 
-    reference = pd.read_csv(args.reference)
-    current = pd.read_csv(args.current)
+    reference_path = args.reference
+    current_path = args.current
+
+    if str(reference_path).startswith("gs://") or str(current_path).startswith("gs://"):
+        from cloudlayer.factory import get_adapter
+
+        adapter = get_adapter(config.load(strict=False))
+
+        if str(reference_path).startswith("gs://"):
+            local_reference = Path("/tmp/reference.csv")
+            adapter.download(str(reference_path), str(local_reference))
+            reference_path = local_reference
+
+        if str(current_path).startswith("gs://"):
+            local_current = Path("/tmp/current.csv")
+            adapter.download(str(current_path), str(local_current))
+            current_path = local_current
+
+    reference = pd.read_csv(reference_path)
+    current = pd.read_csv(current_path)
     results = compare(reference, current, data.FEATURES)
 
     args.out.parent.mkdir(parents=True, exist_ok=True)
